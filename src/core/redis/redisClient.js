@@ -3,11 +3,9 @@ const Redis = require("ioredis");
 let redisClient = null;
 
 if (process.env.REDIS_URL) {
-
   redisClient = new Redis(process.env.REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
-    reconnectOnError: () => true
   });
 
   redisClient.on("connect", () => {
@@ -15,13 +13,10 @@ if (process.env.REDIS_URL) {
   });
 
   redisClient.on("error", (err) => {
-    console.error("Redis error:", err);
+    console.error("Redis error:", err.message);
   });
-
 } else {
-
   console.warn("⚠️ Redis disabled (REDIS_URL not set)");
-
 }
 
 module.exports = redisClient;
