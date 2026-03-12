@@ -1,22 +1,25 @@
 const pool = require('../core/database');
 const { getSetting } = require('../core/config/settings.service');
 
-async function generateGrowthInsights(){
+async function runOptimizationEngine(){
 
-  const enabled = await getSetting('growth_engine_enabled');
+  const enabled = await getSetting('optimization_engine_enabled');
 
   if(!enabled){
     return;
   }
 
+  const hours =
+    Number(await getSetting('optimization_analysis_window_hours')) || 24;
+
   const demandThreshold =
-    Number(await getSetting('growth_demand_threshold')) || 15;
+    Number(await getSetting('optimization_high_demand_threshold')) || 25;
 
   const techThreshold =
-    Number(await getSetting('growth_low_technician_threshold')) || 3;
+    Number(await getSetting('optimization_low_supply_threshold')) || 3;
 
-  const hours =
-    Number(await getSetting('growth_analysis_window_hours')) || 24;
+  const maxSurge =
+    Number(await getSetting('optimization_max_surge_multiplier')) || 2;
 
   const demand = await pool.query(
     `
@@ -49,11 +52,13 @@ async function generateGrowthInsights(){
 
     if(technicians < techThreshold){
 
+      const surgeMultiplier =
+        Math.min(1 + (bookings / demandThreshold) * 0.5, maxSurge);
+
       console.log(
-        "📈 Growth Opportunity:",
+        "⚙ Optimization Action:",
         "society", area.society_id,
-        "bookings", bookings,
-        "technicians", technicians
+        "surge", surgeMultiplier.toFixed(2)
       );
 
     }
@@ -62,4 +67,4 @@ async function generateGrowthInsights(){
 
 }
 
-module.exports = { generateGrowthInsights };
+module.exports = { runOptimizationEngine };

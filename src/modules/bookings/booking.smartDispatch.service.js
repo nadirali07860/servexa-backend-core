@@ -1,8 +1,18 @@
 const pool = require('../../core/database');
+const { getSetting } = require('../../core/config/settings.service');
 
 async function smartDispatch(serviceId, societyId, latitude, longitude) {
 
+  const autoDispatch = await getSetting('auto_dispatch_enabled');
+  const aiDispatch = await getSetting('ai_dispatch_enabled');
+  const maxBookings = await getSetting('max_technician_active_bookings');
+
+  if (!autoDispatch) {
+    return [];
+  }
+
   const { rows: technicians } = await pool.query(
+
     `
     SELECT
       t.user_id,
@@ -26,22 +36,27 @@ async function smartDispatch(serviceId, societyId, latitude, longitude) {
     FROM technicians t
 
     JOIN technician_locations l
-    ON l.technician_id = t.user_id
+      ON l.technician_id = t.user_id
 
     JOIN service_availability sa
-    ON sa.society_id = $2
+      ON sa.society_id = $2
 
-    WHERE sa.service_id = $1
-    AND sa.is_active = true
-    AND t.is_approved = true
-    AND t.is_online = true
-    AND t.status = 'AVAILABLE'
-    AND t.active_bookings < 2
+    WHERE
+      sa.service_id = $1
+      AND sa.is_active = true
+      AND t.is_approved = true
+      AND t.is_online = true
+      AND t.status = 'AVAILABLE'
+      AND t.active_bookings < $5
     `,
-    [serviceId, societyId, latitude, longitude]
+    [serviceId, societyId, latitude, longitude, maxBookings]
   );
 
   if (!technicians.length) return [];
+
+  if (!aiDispatch) {
+    return technicians.slice(0,3).map(t => t.user_id);
+  }
 
   const ranked = technicians
     .map(t => {
@@ -67,17 +82,14 @@ async function smartDispatch(serviceId, societyId, latitude, longitude) {
       };
 
     })
-    .sort((a,b) => b.score - a.score);
+    .sort((a,b)=> b.score - a.score);
 
   const topCandidates = ranked.slice(0,5);
-
-  /*
-  DISPATCH DECISION LOGGING
-  */
 
   for (const tech of topCandidates) {
 
     await pool.query(
+
       `
       INSERT INTO dispatch_decision_logs
       (booking_id, technician_id, score, distance, rating, active_bookings, reason)
@@ -91,6 +103,7 @@ async function smartDispatch(serviceId, societyId, latitude, longitude) {
         tech.active_bookings,
         'AUTO_DISPATCH_SCORING'
       ]
+
     );
 
   }
