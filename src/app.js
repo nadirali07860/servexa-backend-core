@@ -18,17 +18,25 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true,
-  })
-);
+/*
+ Development → allow all origins
+ Production → use env CORS_ORIGIN
+*/
+if (process.env.NODE_ENV === "production") {
+  app.use(
+    cors({
+      origin: process.env.CORS_ORIGIN.split(","),
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      credentials: true
+    })
+  );
+} else {
+  app.use(cors());
+}
 
 app.use(
   express.json({
-    limit: process.env.JSON_LIMIT || '5mb',
+    limit: process.env.JSON_LIMIT || '5mb'
   })
 );
 
@@ -61,15 +69,13 @@ app.get('/health', async (req, res) => {
     db: dbStatus,
     redis: redisStatus,
     uptime: process.uptime(),
-    timestamp: new Date(),
+    timestamp: new Date()
   });
-
 });
 
 /* ================= API ROUTES ================= */
 
 app.use('/api/v1/dispatch', dispatchRoutes);
-
 app.use('/api/v1', require('./routes/v1'));
 
 /* ================= ERROR HANDLER ================= */
