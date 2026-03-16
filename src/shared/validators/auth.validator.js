@@ -34,7 +34,7 @@ const verifyOtpSchema = Joi.object({
     .optional(),
 
   role: Joi.string()
-    .valid('customer', 'technician')
+    .valid('customer', 'technician', 'admin', 'super_admin')
     .required()
     .messages({
       'any.only': 'Role must be either customer or technician',
