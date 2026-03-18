@@ -18,36 +18,51 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 
-/*
- Development → allow all origins
- Production → use env CORS_ORIGIN
-*/
-if (process.env.NODE_ENV === "production") {
-  app.use(
-    cors({
-      origin: process.env.CORS_ORIGIN.split(","),
-      methods: ['GET', 'POST', 'PUT', 'DELETE'],
-      credentials: true
-    })
-  );
-} else {
-  app.use(cors());
-}
+/* ================= CORS (HYBRID ENTERPRISE) ================= */
+
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
+  : [];
 
 app.use(
-  express.json({
-    limit: process.env.JSON_LIMIT || '5mb'
+  cors({
+    origin: function (origin, callback) {
+      // allow requests without origin (mobile apps, curl)
+      if (!origin) return callback(null, true);
+
+      // 🔥 DEV: allow ANY IP with port 5173
+      if (origin.includes(':5173')) {
+        return callback(null, true);
+      }
+
+      // 🔥 PRODUCTION: allow only defined domains
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log("❌ CORS BLOCKED:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
   })
 );
 
-/* ================= REQUEST LOGGER ================= */
+/* ================= BODY ================= */
+
+app.use(
+  express.json({
+    limit: process.env.JSON_LIMIT || '5mb',
+  })
+);
+
+/* ================= LOGGER ================= */
 
 app.use(requestLogger);
 
-/* ================= HEALTH CHECK ================= */
+/* ================= HEALTH ================= */
 
 app.get('/health', async (req, res) => {
-
   let dbStatus = 'OK';
   let redisStatus = 'OK';
 
@@ -69,16 +84,16 @@ app.get('/health', async (req, res) => {
     db: dbStatus,
     redis: redisStatus,
     uptime: process.uptime(),
-    timestamp: new Date()
+    timestamp: new Date(),
   });
 });
 
-/* ================= API ROUTES ================= */
+/* ================= ROUTES ================= */
 
 app.use('/api/v1/dispatch', dispatchRoutes);
 app.use('/api/v1', require('./routes/v1'));
 
-/* ================= ERROR HANDLER ================= */
+/* ================= ERROR ================= */
 
 app.use(errorHandler);
 
